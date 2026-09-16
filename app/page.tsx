@@ -3,9 +3,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   Crown,
   History,
+  LockKeyhole,
+  LogIn,
+  LogOut,
   Minus,
   Plus,
   Shield,
@@ -78,6 +82,8 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -99,7 +105,18 @@ export default function Home() {
       }
     }
 
+    async function loadSession() {
+      try {
+        const response = await fetch('/api/auth/session', { cache: 'no-store' });
+        const data = (await response.json()) as { authenticated?: boolean };
+        if (active) setIsAdmin(Boolean(data.authenticated));
+      } finally {
+        if (active) setAuthReady(true);
+      }
+    }
+
     void loadScoreboard();
+    void loadSession();
     const interval = window.setInterval(() => void loadScoreboard(false), 5000);
     return () => {
       active = false;
@@ -128,6 +145,12 @@ export default function Home() {
     }
   }
 
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    setIsAdmin(false);
+    setMessage('Signed out. The leaderboard remains available in view-only mode.');
+  }
+
   useEffect(() => {
     type ToolInput = { house?: unknown; points?: unknown; note?: unknown };
     type ModelContext = {
@@ -146,7 +169,7 @@ export default function Home() {
     const modelContext = (
       document as Document & { modelContext?: ModelContext }
     ).modelContext;
-    if (!modelContext?.registerTool) return;
+    if (!modelContext?.registerTool || !isAdmin) return;
 
     const lifecycle = new AbortController();
     void Promise.resolve(
@@ -204,7 +227,7 @@ export default function Home() {
     ).catch(() => undefined);
 
     return () => lifecycle.abort();
-  }, []);
+  }, [isAdmin]);
 
   const rankedHouses = useMemo(
     () =>
@@ -275,9 +298,27 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <div className="hidden items-center gap-2 text-sm text-[#c9b98f] sm:flex">
-            <span className={`save-dot ${ready ? 'is-ready' : ''}`} />
-            {ready ? 'Synced across devices' : 'Opening shared scorebook…'}
+          <div className="flex items-center gap-3 text-sm text-[#c9b98f]">
+            <span className="hidden items-center gap-2 sm:flex">
+              <span className={`save-dot ${ready ? 'is-ready' : ''}`} />
+              {ready ? 'Synced across devices' : 'Opening shared scorebook…'}
+            </span>
+            {authReady && isAdmin ? (
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-2 rounded-full border border-[#d5b765]/25 bg-[#d5b765]/10 px-3 py-2 font-semibold text-[#f1d788] transition hover:bg-[#d5b765]/20"
+              >
+                <LogOut className="size-4" aria-hidden="true" /> Sign out
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 font-semibold text-[#ddd2b9] transition hover:bg-white/10 hover:text-white"
+              >
+                <LogIn className="size-4" aria-hidden="true" /> Admin login
+              </Link>
+            )}
           </div>
         </div>
       </header>
@@ -351,22 +392,25 @@ export default function Home() {
                     points
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                  onClick={() => {
-                    setSelectedHouse(house.id);
-                    document.getElementById('points-entry')?.focus();
-                  }}
-                >
-                  Add points
-                </button>
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    onClick={() => {
+                      setSelectedHouse(house.id);
+                      document.getElementById('points-entry')?.focus();
+                    }}
+                  >
+                    Add points
+                  </button>
+                ) : null}
               </div>
             </article>
           ))}
         </section>
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)]">
+          {isAdmin ? (
           <div className="score-panel rounded-[1.5rem] border border-[#d5b765]/25 bg-[#11131d]/90 p-5 shadow-2xl shadow-black/20 sm:p-7">
             <div className="mb-6 flex items-center gap-3">
               <span className="active-crest-wrap grid size-14 shrink-0 place-items-center rounded-xl bg-[#d5b765]/10 text-[#e4ca77]">
@@ -483,6 +527,25 @@ export default function Home() {
               </p>
             </form>
           </div>
+          ) : (
+            <div className="score-panel grid min-h-[28rem] place-items-center rounded-[1.5rem] border border-[#d5b765]/20 bg-[#11131d]/90 p-7 text-center shadow-2xl shadow-black/20">
+              <div className="max-w-md">
+                <span className="mx-auto mb-5 grid size-16 place-items-center rounded-full border border-[#d5b765]/30 bg-[#d5b765]/10 text-[#e4ca77]">
+                  <LockKeyhole className="size-7" aria-hidden="true" />
+                </span>
+                <h2 className="font-display text-3xl text-[#fff7e6]">View-only leaderboard</h2>
+                <p className="mt-3 leading-7 text-[#aaa28f]">
+                  Everyone can follow the live standings. Only the authorised admin can award or deduct points.
+                </p>
+                <Link
+                  href="/login"
+                  className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#d9bd65] px-5 text-sm font-bold text-[#171208] transition hover:bg-[#f0d87f]"
+                >
+                  <LogIn className="size-4" aria-hidden="true" /> Admin login
+                </Link>
+              </div>
+            </div>
+          )}
 
           <aside
             className="rounded-[1.5rem] border border-white/10 bg-[#0d0f17]/90 p-5 sm:p-7"
@@ -495,16 +558,18 @@ export default function Home() {
                   Recent awards
                 </h2>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={undoLast}
-                disabled={!history.length || saving}
-                className="text-[#c9b98f] hover:bg-white/10 hover:text-white"
-              >
-                <Undo2 className="size-4" aria-hidden="true" /> Undo last
-              </Button>
+              {isAdmin ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={undoLast}
+                  disabled={!history.length || saving}
+                  className="text-[#c9b98f] hover:bg-white/10 hover:text-white"
+                >
+                  <Undo2 className="size-4" aria-hidden="true" /> Undo last
+                </Button>
+              ) : null}
             </div>
             {history.length === 0 ? (
               <div className="grid min-h-64 place-items-center rounded-xl border border-dashed border-white/10 px-6 text-center">

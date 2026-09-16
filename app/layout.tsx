@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'LIBA House Cup',
-  description: 'A local house leaderboard for the LIBA Generative AI workshop.',
+  description: 'A shared house leaderboard for the LIBA Generative AI workshop.',
 };
 
 export default function RootLayout({

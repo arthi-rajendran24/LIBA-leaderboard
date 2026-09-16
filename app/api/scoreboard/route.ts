@@ -7,6 +7,7 @@ import {
   type Scoreboard,
 } from '@/lib/scoreboard';
 import { redisCommand } from '@/lib/redis';
+import { isAdminAuthenticated } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +74,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    if (!(await isAdminAuthenticated())) {
+      return NextResponse.json(
+        { error: 'Admin login required.' },
+        { status: 401 },
+      );
+    }
     const input = (await request.json()) as Partial<ScoreEntry>;
     const points = Number(input.points);
     if (
@@ -118,6 +125,12 @@ export async function POST(request: Request) {
 
 export async function DELETE() {
   try {
+    if (!(await isAdminAuthenticated())) {
+      return NextResponse.json(
+        { error: 'Admin login required.' },
+        { status: 401 },
+      );
+    }
     await redisCommand<string | null>([
       'EVAL',
       undoScript,
